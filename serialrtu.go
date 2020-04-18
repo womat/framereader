@@ -21,6 +21,8 @@ type serialPort struct {
 // OpenOptions is the struct containing all of the options necessary for
 // opening a serial port.
 type OpenOptions struct {
+	Address           byte
+	CheckCRC          bool
 	PortName          string
 	BaudRate          uint
 	DataBits          uint
@@ -70,6 +72,8 @@ func Open(options OpenOptions) (io.ReadWriteCloser, error) {
 	port.f, err = serial.Open(o)
 	port.interCharacterTimeout = time.Duration(options.InterCharacterTimeout) * time.Microsecond
 	port.rChan = make(chan []byte, 10)
+	port.Address = options.Address
+	port.CheckCRC = options.CheckCRC
 
 	go port.Serv()
 	return port, err
