@@ -69,7 +69,9 @@ func Open(options OpenOptions) (io.ReadWriteCloser, error) {
 	}
 
 	port := new(serialPort)
-	port.f, err = serial.Open(o)
+	if port.f, err = serial.Open(o); err != nil {
+		return port, err
+	}
 	port.interCharacterTimeout = time.Duration(options.InterCharacterTimeout) * time.Microsecond
 	port.rChan = make(chan []byte, 10)
 	port.DeviceId = options.DeviceId
