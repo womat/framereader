@@ -15,13 +15,13 @@ type serialPort struct {
 	interCharacterTimeout time.Duration
 	Debug                 io.ReadWriteCloser
 	CheckCRC              bool
-	Address               byte
+	DeviceId              byte
 }
 
 // OpenOptions is the struct containing all of the options necessary for
 // opening a serial port.
 type OpenOptions struct {
-	Address           byte
+	DeviceId          byte
 	CheckCRC          bool
 	PortName          string
 	BaudRate          uint
@@ -72,7 +72,7 @@ func Open(options OpenOptions) (io.ReadWriteCloser, error) {
 	port.f, err = serial.Open(o)
 	port.interCharacterTimeout = time.Duration(options.InterCharacterTimeout) * time.Microsecond
 	port.rChan = make(chan []byte, 10)
-	port.Address = options.Address
+	port.DeviceId = options.DeviceId
 	port.CheckCRC = options.CheckCRC
 
 	go port.Serv()
@@ -118,11 +118,12 @@ func (p *serialPort) Serv() {
 		}
 
 		ict := time.Since(t)
+
 		if ict > p.interCharacterTimeout {
 			// New Frame received
 			if len(buffer) >= 4 {
 				// minimum Modbus Frame Size is 4
-				if p.Address == 0 || buffer[1] == p.Address {
+				if p.DeviceId == 0 || buffer[0] == p.DeviceId {
 					// ignore defined Address; Address 0 means don't ignore Addresses
 					log.Printf("serialrtu read new modbus Frame (ict/ictmax): (%v/%v) %v\n", ict, maxIct, hex.EncodeToString(buffer))
 
@@ -153,7 +154,7 @@ func (p *serialPort) Serv() {
 		if n > 0 {
 			// add serial buffer to Frame buffer
 			//			fmt.Printf("inter character time: %v\n", ict)
-			log.Printf("serialrtu add Rx Buffer %v to ADU Buffer %v\n", hex.EncodeToString(buf[:n]), hex.EncodeToString(buffer))
+			//			log.Printf("serialrtu add Rx Buffer %v to ADU Buffer %v\n", hex.EncodeToString(buf[:n]), hex.EncodeToString(buffer))
 			if len(buffer) > 0 && ict > maxIct {
 				// calc ict of the received Frame
 				maxIct = ict
