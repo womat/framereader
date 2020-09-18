@@ -165,7 +165,7 @@ func (p *serialPort) Serv() {
 
 		ict := time.Since(t)
 
-		if ict > p.interCharacterTimeout {
+		if ict > p.interCharacterTimeout && len(buffer) > 0 {
 			// New Frame received
 			log.Printf("serialrtu read new modbus Frame (ict/ictmax): (%v/%v) %v\n", ict, maxIct, hex.EncodeToString(buffer))
 			p.rChan <- buffer
