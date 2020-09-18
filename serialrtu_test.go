@@ -13,7 +13,6 @@ const (
 	Parity                = "N"
 	Timeout               = 1000
 	InterCharacterTimeout = 100
-	MinimumReadSize       = 0
 )
 
 func TestOpen(t *testing.T) {
@@ -25,8 +24,6 @@ func TestOpen(t *testing.T) {
 		Parity:                Parity,
 		Timeout:               Timeout,
 		InterCharacterTimeout: InterCharacterTimeout,
-		MinimumReadSize:       MinimumReadSize,
-		RS485:                 RS485Config{},
 	})
 	defer func() {
 		if c == nil {
@@ -49,8 +46,6 @@ func TestClose(t *testing.T) {
 		Parity:                Parity,
 		Timeout:               Timeout,
 		InterCharacterTimeout: InterCharacterTimeout,
-		MinimumReadSize:       MinimumReadSize,
-		RS485:                 RS485Config{},
 	})
 
 	if err != nil {
@@ -72,8 +67,6 @@ func TestWrite(t *testing.T) {
 		Parity:                Parity,
 		Timeout:               Timeout,
 		InterCharacterTimeout: InterCharacterTimeout,
-		MinimumReadSize:       MinimumReadSize,
-		RS485:                 RS485Config{},
 	})
 
 	if err != nil {
