@@ -13,55 +13,95 @@ type serialPort struct {
 	f                     io.ReadWriteCloser
 	rChan                 chan []byte
 	interCharacterTimeout time.Duration
-	Debug                 io.ReadWriteCloser
-	CheckCRC              bool
-	DeviceId              byte
+	timeout               time.Duration
+	closed                bool
 }
 
 // OpenOptions is the struct containing all of the options necessary for
 // opening a serial port.
-type OpenOptions struct {
-	DeviceId          byte
-	CheckCRC          bool
-	PortName          string
-	BaudRate          uint
-	DataBits          uint
-	StopBits          uint
-	Parity            string
-	RTSCTSFlowControl bool
+type Config struct {
+	// The name of the port, e.g. "/dev/tty.usbserial-A8008HlV".
+	PortName string
+	// The baud rate for the port (default 19200)
+	BaudRate uint
+	// The number of data bits per frame. Legal values are 5, 6, 7, and 8 (default 8)
+	DataBits uint
+	// The number of stop bits per frame. Legal values are 1 and 2 (default 1)
+	StopBits uint
+	// The type of parity bits to use for the connection. Currently parity errors
+	// are simply ignored; that is, bytes are delivered to the user no matter
+	// whether they were received with a parity error or not.
+	// Parity: N - None, E - Even, O - Odd (default E)
+	Parity string
+	// Read (Write) timeout.
+	Timeout time.Duration
+	// An inter-character timeout value, in milliseconds, and a minimum number of
+	// bytes to block for on each read. A call to Read() that otherwise may block
+	// waiting for more data will return immediately if the specified amount of
+	// time elapses between successive bytes received from the device or if the
+	// minimum number of bytes has been exceeded.
+	//
+	// Note that the inter-character timeout value may be rounded to the nearest
+	// 100 ms on some systems, and that behavior is undefined if calls to Read
+	// supply a buffer whose length is less than the minimum read size.
+	//
+	// Behaviors for various settings for these values are described below. For
+	// more information, see the discussion of VMIN and VTIME here:
+	//
+	//     http://www.unixwiz.net/techtips/termios-vmin-vtime.html
+	//
+	// InterCharacterTimeout = 0 and MinimumReadSize = 0 (the default):
+	//     This arrangement is not legal; you must explicitly set at least one of
+	//     these fields to a positive number. (If MinimumReadSize is zero then
+	//     InterCharacterTimeout must be at least 100.)
+	//
+	// InterCharacterTimeout > 0 and MinimumReadSize = 0
+	//     If data is already available on the read queue, it is transferred to
+	//     the caller's buffer and the Read() call returns immediately.
+	//     Otherwise, the call blocks until some data arrives or the
+	//     InterCharacterTimeout milliseconds elapse from the start of the call.
+	//     Note that in this configuration, InterCharacterTimeout must be at
+	//     least 100 ms.
+	//
+	// InterCharacterTimeout > 0 and MinimumReadSize > 0
+	//     Calls to Read() return when at least MinimumReadSize bytes are
+	//     available or when InterCharacterTimeout milliseconds elapse between
+	//     received bytes. The inter-character timer is not started until the
+	//     first byte arrives.
+	//
+	// InterCharacterTimeout = 0 and MinimumReadSize > 0
+	//     Calls to Read() return only when at least MinimumReadSize bytes are
+	//     available. The inter-character timer is not used.
+	//
+	// For windows usage, these options (termios) do not conform well to the
+	//     windows serial port / comms abstractions.  Please see the code in
+	//		 open_windows setCommTimeouts function for full documentation.
+	//   	 Summary:
+	//			Setting MinimumReadSize > 0 will cause the serialPort to block until
+	//			until data is available on the port.
+	//			Setting IntercharacterTimeout > 0 and MinimumReadSize == 0 will cause
+	//			the port to either wait until IntercharacterTimeout wait time is
+	//			exceeded OR there is character data to return from the port.
+	//
 	// InterCharacterTimeout in Microseconds !!
-	InterCharacterTimeout   uint
-	MinimumReadSize         uint
-	Rs485Enable             bool
-	Rs485RtsHighDuringSend  bool
-	Rs485RtsHighAfterSend   bool
-	Rs485RxDuringTx         bool
-	Rs485DelayRtsBeforeSend int
-	Rs485DelayRtsAfterSend  int
+	InterCharacterTimeout time.Duration
 }
 
 // Open creates an io.ReadWriteCloser based on the supplied options struct.
-func Open(options OpenOptions) (io.ReadWriteCloser, error) {
+func Open(c Config) (io.ReadWriteCloser, error) {
 	var err error
 
 	o := serial.OpenOptions{
-		PortName:               options.PortName,
-		BaudRate:               options.BaudRate,
-		DataBits:               options.DataBits,
-		StopBits:               options.StopBits,
-		MinimumReadSize:        options.MinimumReadSize,
-		InterCharacterTimeout:  options.InterCharacterTimeout / 100,
-		ParityMode:             serial.PARITY_NONE,
-		Rs485Enable:            options.Rs485Enable,
-		Rs485RtsHighDuringSend: options.Rs485RtsHighDuringSend,
-		Rs485RtsHighAfterSend:  options.Rs485RtsHighAfterSend,
+		PortName:              c.PortName,
+		BaudRate:              c.BaudRate,
+		DataBits:              c.DataBits,
+		StopBits:              c.StopBits,
+		MinimumReadSize:       0,
+		InterCharacterTimeout: 100,
+		ParityMode:            serial.PARITY_NONE,
 	}
 
-	if o.InterCharacterTimeout < 100 {
-		o.InterCharacterTimeout = 100
-	}
-
-	switch options.Parity {
+	switch c.Parity {
 	case "O":
 		o.ParityMode = serial.PARITY_ODD
 	case "E":
@@ -72,16 +112,16 @@ func Open(options OpenOptions) (io.ReadWriteCloser, error) {
 	if port.f, err = serial.Open(o); err != nil {
 		return port, err
 	}
-	port.interCharacterTimeout = time.Duration(options.InterCharacterTimeout) * time.Microsecond
+	port.interCharacterTimeout = c.InterCharacterTimeout
+	port.timeout = c.Timeout
 	port.rChan = make(chan []byte, 10)
-	port.DeviceId = options.DeviceId
-	port.CheckCRC = options.CheckCRC
 
 	go port.Serv()
 	return port, err
 }
 
 func (p *serialPort) Close() error {
+	p.closed = true
 	return p.f.Close()
 }
 
@@ -90,16 +130,16 @@ func (p *serialPort) Write(buf []byte) (int, error) {
 }
 
 func (p *serialPort) Read(buf []byte) (n int, err error) {
-	timeOut := p.interCharacterTimeout * 100
-	if timeOut == 0 {
-		timeOut = time.Minute
-	}
+	timeout := time.NewTimer(p.timeout)
 
 	select {
-	case b := <-p.rChan:
+	case b, ok := <-p.rChan:
 		n = copy(buf, b)
-		//case <-time.After(timeOut):
-		//	err = io.EOF
+		if !ok {
+			err = io.EOF
+		}
+	case <-timeout.C:
+		err = io.EOF
 	}
 
 	return
@@ -111,11 +151,15 @@ func (p *serialPort) Serv() {
 	var maxIct time.Duration
 
 	buffer := make([]byte, 0, 255)
-	buf := make([]byte, 255)
+	chunk := make([]byte, 255)
 
 	for {
+		if p.closed {
+			break
+		}
+
 		t := time.Now()
-		if n, err = p.f.Read(buf); err != nil && err != io.EOF {
+		if n, err = p.f.Read(chunk); err != nil && err != io.EOF {
 			log.Println("serialrtu ERROR: reading from serial port: ", err)
 		}
 
@@ -123,30 +167,8 @@ func (p *serialPort) Serv() {
 
 		if ict > p.interCharacterTimeout {
 			// New Frame received
-			if len(buffer) >= 4 {
-				// minimum Modbus Frame Size is 4
-				if p.DeviceId == 0 || buffer[0] == p.DeviceId {
-					// ignore defined Address; Address 0 means don't ignore Addresses
-					log.Printf("serialrtu read new modbus Frame (ict/ictmax): (%v/%v) %v\n", ict, maxIct, hex.EncodeToString(buffer))
-
-					OrgCRC := uint16(buffer[len(buffer)-1])<<8 | uint16(buffer[len(buffer)-2])
-					CalcCRC := OrgCRC
-
-					if p.CheckCRC {
-						// calc CRC if option checkCRC is enabled
-						var crc crc
-						crc.reset().pushBytes(buffer[0 : len(buffer)-2])
-						CalcCRC = crc.value()
-					}
-
-					if OrgCRC == CalcCRC {
-						p.rChan <- buffer
-					} else {
-						// if crc is false, ignore Frame
-						log.Printf("serialrtu ERROR: invalid crc")
-					}
-				}
-			}
+			log.Printf("serialrtu read new modbus Frame (ict/ictmax): (%v/%v) %v\n", ict, maxIct, hex.EncodeToString(buffer))
+			p.rChan <- buffer
 
 			// empty frame buffer, be ready for new Frame
 			buffer = buffer[0:0]
@@ -156,83 +178,13 @@ func (p *serialPort) Serv() {
 		if n > 0 {
 			// add serial buffer to Frame buffer
 			//			fmt.Printf("inter character time: %v\n", ict)
-			//			log.Printf("serialrtu add Rx Buffer %v to ADU Buffer %v\n", hex.EncodeToString(buf[:n]), hex.EncodeToString(buffer))
+			//			log.Printf("serialrtu add Rx Buffer %v to ADU Buffer %v\n", hex.EncodeToString(chunk[:n]), hex.EncodeToString(buffer))
 			if len(buffer) > 0 && ict > maxIct {
 				// calc ict of the received Frame
 				maxIct = ict
 			}
-			buffer = append(buffer, buf[:n]...)
+			buffer = append(buffer, chunk[:n]...)
 		}
 	}
-}
-
-// Copyright 2014 Quoc-Viet Nguyen. All rights reserved.
-// This software may be modified and distributed under the terms
-// of the BSD license. See the LICENSE file for details.
-
-// Table of CRC values for high–order byte
-var crcHighBytes = []byte{
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-	0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-}
-
-// Table of CRC values for low-order byte
-var crcLowBytes = []byte{
-	0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 0xC7, 0x05, 0xC5, 0xC4, 0x04,
-	0xCC, 0x0C, 0x0D, 0xCD, 0x0F, 0xCF, 0xCE, 0x0E, 0x0A, 0xCA, 0xCB, 0x0B, 0xC9, 0x09, 0x08, 0xC8,
-	0xD8, 0x18, 0x19, 0xD9, 0x1B, 0xDB, 0xDA, 0x1A, 0x1E, 0xDE, 0xDF, 0x1F, 0xDD, 0x1D, 0x1C, 0xDC,
-	0x14, 0xD4, 0xD5, 0x15, 0xD7, 0x17, 0x16, 0xD6, 0xD2, 0x12, 0x13, 0xD3, 0x11, 0xD1, 0xD0, 0x10,
-	0xF0, 0x30, 0x31, 0xF1, 0x33, 0xF3, 0xF2, 0x32, 0x36, 0xF6, 0xF7, 0x37, 0xF5, 0x35, 0x34, 0xF4,
-	0x3C, 0xFC, 0xFD, 0x3D, 0xFF, 0x3F, 0x3E, 0xFE, 0xFA, 0x3A, 0x3B, 0xFB, 0x39, 0xF9, 0xF8, 0x38,
-	0x28, 0xE8, 0xE9, 0x29, 0xEB, 0x2B, 0x2A, 0xEA, 0xEE, 0x2E, 0x2F, 0xEF, 0x2D, 0xED, 0xEC, 0x2C,
-	0xE4, 0x24, 0x25, 0xE5, 0x27, 0xE7, 0xE6, 0x26, 0x22, 0xE2, 0xE3, 0x23, 0xE1, 0x21, 0x20, 0xE0,
-	0xA0, 0x60, 0x61, 0xA1, 0x63, 0xA3, 0xA2, 0x62, 0x66, 0xA6, 0xA7, 0x67, 0xA5, 0x65, 0x64, 0xA4,
-	0x6C, 0xAC, 0xAD, 0x6D, 0xAF, 0x6F, 0x6E, 0xAE, 0xAA, 0x6A, 0x6B, 0xAB, 0x69, 0xA9, 0xA8, 0x68,
-	0x78, 0xB8, 0xB9, 0x79, 0xBB, 0x7B, 0x7A, 0xBA, 0xBE, 0x7E, 0x7F, 0xBF, 0x7D, 0xBD, 0xBC, 0x7C,
-	0xB4, 0x74, 0x75, 0xB5, 0x77, 0xB7, 0xB6, 0x76, 0x72, 0xB2, 0xB3, 0x73, 0xB1, 0x71, 0x70, 0xB0,
-	0x50, 0x90, 0x91, 0x51, 0x93, 0x53, 0x52, 0x92, 0x96, 0x56, 0x57, 0x97, 0x55, 0x95, 0x94, 0x54,
-	0x9C, 0x5C, 0x5D, 0x9D, 0x5F, 0x9F, 0x9E, 0x5E, 0x5A, 0x9A, 0x9B, 0x5B, 0x99, 0x59, 0x58, 0x98,
-	0x88, 0x48, 0x49, 0x89, 0x4B, 0x8B, 0x8A, 0x4A, 0x4E, 0x8E, 0x8F, 0x4F, 0x8D, 0x4D, 0x4C, 0x8C,
-	0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80, 0x40,
-}
-
-// Cyclical Redundancy Checking
-type crc struct {
-	high byte
-	low  byte
-}
-
-func (crc *crc) reset() *crc {
-	crc.high = 0xFF
-	crc.low = 0xFF
-	return crc
-}
-
-func (crc *crc) pushBytes(bs []byte) *crc {
-	var idx, b byte
-
-	for _, b = range bs {
-		idx = crc.low ^ b
-		crc.low = crc.high ^ crcHighBytes[idx]
-		crc.high = crcLowBytes[idx]
-	}
-	return crc
-}
-
-func (crc *crc) value() uint16 {
-	return uint16(crc.high)<<8 | uint16(crc.low)
+	close(p.rChan)
 }
