@@ -10,11 +10,11 @@ import (
 )
 
 type serialPort struct {
-	f                     io.ReadWriteCloser
-	rChan                 chan []byte
-	interCharacterTimeout time.Duration
-	timeout               time.Duration
-	closed                bool
+	f               io.ReadWriteCloser
+	rChan           chan []byte
+	interframedelay time.Duration
+	timeout         time.Duration
+	closed          bool
 }
 
 // OpenOptions is the struct containing all of the options necessary for
@@ -83,8 +83,8 @@ type Config struct {
 	//			the port to either wait until IntercharacterTimeout wait time is
 	//			exceeded OR there is character data to return from the port.
 	//
-	// InterCharacterTimeout in Microseconds !!
-	InterCharacterTimeout time.Duration
+	// MODBUS specification requires an inter-frame delay of 3.5 character times to determine end of a frame (transmission).
+	InterframeDelay time.Duration
 }
 
 // Open creates an io.ReadWriteCloser based on the supplied options struct.
@@ -112,7 +112,7 @@ func Open(c Config) (io.ReadWriteCloser, error) {
 	if port.f, err = serial.Open(o); err != nil {
 		return port, err
 	}
-	port.interCharacterTimeout = c.InterCharacterTimeout
+	port.interframedelay = c.InterframeDelay
 	port.timeout = c.Timeout
 	port.rChan = make(chan []byte, 10)
 
@@ -148,9 +148,10 @@ func (p *serialPort) Read(buf []byte) (n int, err error) {
 func (p *serialPort) Serv() {
 	var err error
 	var n int
-	var maxIct time.Duration
+	// max. inter-character delay
+	var icdmax time.Duration
 
-	buffer := make([]byte, 0, 255)
+	frame := make([]byte, 0, 255)
 	chunk := make([]byte, 255)
 
 	for {
@@ -163,27 +164,26 @@ func (p *serialPort) Serv() {
 			log.Println("serialrtu ERROR: reading from serial port: ", err)
 		}
 
-		ict := time.Since(t)
+		// measure the inter-character delay
+		icd := time.Since(t)
 
-		if ict > p.interCharacterTimeout && len(buffer) > 0 {
+		if icd > p.interframedelay && len(frame) > 0 {
 			// New Frame received
-			log.Printf("serialrtu read new modbus Frame (ict/ictmax): (%v/%v) %v\n", ict, maxIct, hex.EncodeToString(buffer))
-			p.rChan <- buffer
+			log.Printf("serialrtu read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(frame))
+			p.rChan <- frame
 
-			// empty frame buffer, be ready for new Frame
-			buffer = buffer[0:0]
-			maxIct = 0
+			// empty frame frame, be ready for new Frame
+			frame = frame[0:0]
+			icdmax = 0
 		}
 
 		if n > 0 {
-			// add serial buffer to Frame buffer
-			//			fmt.Printf("inter character time: %v\n", ict)
-			//			log.Printf("serialrtu add Rx Buffer %v to ADU Buffer %v\n", hex.EncodeToString(chunk[:n]), hex.EncodeToString(buffer))
-			if len(buffer) > 0 && ict > maxIct {
+			// add chunk to frame
+			if len(frame) > 0 && icd > icdmax {
 				// calc ict of the received Frame
-				maxIct = ict
+				icdmax = icd
 			}
-			buffer = append(buffer, chunk[:n]...)
+			frame = append(frame, chunk[:n]...)
 		}
 	}
 	close(p.rChan)

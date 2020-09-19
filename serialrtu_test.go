@@ -17,13 +17,13 @@ const (
 
 func TestOpen(t *testing.T) {
 	c, err := Open(Config{
-		PortName:              PortName,
-		BaudRate:              BaudRate,
-		DataBits:              DataBits,
-		StopBits:              StopBits,
-		Parity:                Parity,
-		Timeout:               Timeout,
-		InterCharacterTimeout: InterCharacterTimeout,
+		PortName:        PortName,
+		BaudRate:        BaudRate,
+		DataBits:        DataBits,
+		StopBits:        StopBits,
+		Parity:          Parity,
+		Timeout:         Timeout,
+		InterframeDelay: InterCharacterTimeout,
 	})
 	defer func() {
 		if c == nil {
@@ -39,13 +39,13 @@ func TestOpen(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	c, err := Open(Config{
-		PortName:              PortName,
-		BaudRate:              BaudRate,
-		DataBits:              DataBits,
-		StopBits:              StopBits,
-		Parity:                Parity,
-		Timeout:               Timeout,
-		InterCharacterTimeout: InterCharacterTimeout,
+		PortName:        PortName,
+		BaudRate:        BaudRate,
+		DataBits:        DataBits,
+		StopBits:        StopBits,
+		Parity:          Parity,
+		Timeout:         Timeout,
+		InterframeDelay: InterCharacterTimeout,
 	})
 
 	if err != nil {
@@ -60,13 +60,13 @@ func TestClose(t *testing.T) {
 
 func TestWrite(t *testing.T) {
 	c, err := Open(Config{
-		PortName:              PortName,
-		BaudRate:              BaudRate,
-		DataBits:              DataBits,
-		StopBits:              StopBits,
-		Parity:                Parity,
-		Timeout:               Timeout,
-		InterCharacterTimeout: InterCharacterTimeout,
+		PortName:        PortName,
+		BaudRate:        BaudRate,
+		DataBits:        DataBits,
+		StopBits:        StopBits,
+		Parity:          Parity,
+		Timeout:         Timeout,
+		InterframeDelay: InterCharacterTimeout,
 	})
 
 	if err != nil {
