@@ -65,11 +65,11 @@ const (
 	Fatal
 
 	// initial values for the standard logger
-	Default = Warning|Info|Error|Fatal
+	Default = Warning | Info | Error | Fatal
 
 	// initial values for the standard logger
-	Full = Warning|Info|Error|Fatal|Debug|Trace
-	)
+	Full = Warning | Info | Error | Fatal | Debug | Trace
+)
 
 var (
 	warninglog *log.Logger
@@ -80,7 +80,7 @@ var (
 	fatallog   *log.Logger
 )
 
-func (p *serialPort) SetDebug(w io.Writer, flag int) {
+func SetDebug(w io.Writer, flag int) {
 	warningHandle := ioutil.Discard
 	infoHandle := ioutil.Discard
 	errorHandle := ioutil.Discard

@@ -118,7 +118,7 @@ func Open(c Config) (io.ReadWriteCloser, error) {
 	port.interframedelay = c.InterframeDelay
 	port.timeout = c.Timeout
 	port.rChan = make(chan []byte, 10)
-	port.SetDebug(os.Stderr,Default)
+	SetDebug(os.Stderr, Default)
 
 	go port.Serv()
 	return port, err
@@ -170,7 +170,7 @@ func (p *serialPort) Serv() {
 
 		// measure the inter-character delay
 		icd := time.Since(t)
-		tracelog.Printf("serialrtu read new chunk (ifd): (%v) %v\n", icd,  hex.EncodeToString(chunk))
+		tracelog.Printf("serialrtu read new chunk (ifd): (%v) %v\n", icd, hex.EncodeToString(chunk))
 
 		if icd > p.interframedelay && len(frame) > 0 {
 			// New Frame received
