@@ -107,10 +107,10 @@ func SetDebug(w io.Writer, flag int) {
 		fatalHandle = w
 	}
 
-	infolog = log.New(warningHandle, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
-	warninglog = log.New(infoHandle, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
-	errorlog = log.New(errorHandle, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
-	debuglog = log.New(debugHandle, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
-	tracelog = log.New(traceHandle, "TRACE: ", log.Ldate|log.Ltime|log.Llongfile)
-	fatallog = log.New(fatalHandle, "FATAL: ", log.Ldate|log.Ltime|log.Llongfile)
+	infolog = log.New(warningHandle, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile|log.Lmsgprefix)
+	warninglog = log.New(infoHandle, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile|log.Lmsgprefix)
+	errorlog = log.New(errorHandle, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile|log.Lmsgprefix)
+	debuglog = log.New(debugHandle, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile|log.Lmsgprefix)
+	tracelog = log.New(traceHandle, "TRACE: ", log.Ldate|log.Ltime|log.Lshortfile|log.Lmsgprefix)
+	fatallog = log.New(fatalHandle, "FATAL: ", log.Ldate|log.Ltime|log.Llongfile|log.Lmsgprefix)
 }

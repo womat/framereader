@@ -165,7 +165,7 @@ func (p *serialPort) Serv() {
 
 		t := time.Now()
 		if n, err = p.f.Read(chunk); err != nil && err != io.EOF {
-			errorlog.Println("serialrtu ERROR: reading from serial port: ", err)
+			errorlog.Println("reading from serial port: ", err)
 		}
 
 		// measure the inter-character delay
@@ -173,7 +173,7 @@ func (p *serialPort) Serv() {
 
 		if icd > p.interframedelay && len(frame) > 0 {
 			// New Frame received
-			debuglog.Printf("serialrtu read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(frame))
+			debuglog.Printf("read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(frame))
 			p.rChan <- frame
 
 			// empty frame frame, be ready for new Frame
@@ -183,8 +183,8 @@ func (p *serialPort) Serv() {
 
 		if n > 0 {
 			// add chunk to frame
-			tracelog.Printf("serialrtu read new chunk (ifd): (%v) %v\n", icd, hex.EncodeToString(chunk[:n]))
-			if icd > icdmax {
+			tracelog.Printf("read new chunk (ifd): (%v) %v\n", icd, hex.EncodeToString(chunk[:n]))
+			if len(frame) > 0 && icd > icdmax {
 				// calc icdmax of the received Frame
 				icdmax = icd
 			}
