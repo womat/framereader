@@ -1,4 +1,4 @@
-package serialrtu
+package framereader
 
 import (
 	"fmt"

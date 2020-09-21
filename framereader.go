@@ -1,15 +1,18 @@
-package serialrtu
+package framereader
 
 import (
 	"encoding/hex"
 	"io"
-	"log"
+	"os"
+	"sync"
 	"time"
 
-	"github.com/jacobsa/go-serial/serial"
+	serial "github.com/jacobsa/go-serial/serial"
 )
 
 type serialPort struct {
+	sync.RWMutex
+	debug           io.Writer
 	f               io.ReadWriteCloser
 	rChan           chan []byte
 	interframedelay time.Duration
@@ -115,6 +118,7 @@ func Open(c Config) (io.ReadWriteCloser, error) {
 	port.interframedelay = c.InterframeDelay
 	port.timeout = c.Timeout
 	port.rChan = make(chan []byte, 10)
+	port.SetDebug(os.Stderr,Default)
 
 	go port.Serv()
 	return port, err
@@ -161,15 +165,16 @@ func (p *serialPort) Serv() {
 
 		t := time.Now()
 		if n, err = p.f.Read(chunk); err != nil && err != io.EOF {
-			log.Println("serialrtu ERROR: reading from serial port: ", err)
+			errorlog.Println("serialrtu ERROR: reading from serial port: ", err)
 		}
 
 		// measure the inter-character delay
 		icd := time.Since(t)
+		tracelog.Printf("serialrtu read new chunk (ifd): (%v) %v\n", icd,  hex.EncodeToString(chunk))
 
 		if icd > p.interframedelay && len(frame) > 0 {
 			// New Frame received
-			log.Printf("serialrtu read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(frame))
+			debuglog.Printf("serialrtu read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(frame))
 			p.rChan <- frame
 
 			// empty frame frame, be ready for new Frame
@@ -180,7 +185,7 @@ func (p *serialPort) Serv() {
 		if n > 0 {
 			// add chunk to frame
 			if len(frame) > 0 && icd > icdmax {
-				// calc ict of the received Frame
+				// calc icdmax of the received Frame
 				icdmax = icd
 			}
 			frame = append(frame, chunk[:n]...)

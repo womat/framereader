@@ -1,4 +1,4 @@
-module github.com/womat/serialrtu
+module github.com/womat/framereader
 
 go 1.14
 
