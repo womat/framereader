@@ -170,7 +170,6 @@ func (p *serialPort) Serv() {
 
 		// measure the inter-character delay
 		icd := time.Since(t)
-		tracelog.Printf("serialrtu read new chunk (ifd): (%v) %v\n", icd, hex.EncodeToString(chunk))
 
 		if icd > p.interframedelay && len(frame) > 0 {
 			// New Frame received
@@ -184,7 +183,8 @@ func (p *serialPort) Serv() {
 
 		if n > 0 {
 			// add chunk to frame
-			if len(frame) > 0 && icd > icdmax {
+			tracelog.Printf("serialrtu read new chunk (ifd): (%v) %v\n", icd, hex.EncodeToString(chunk[:n]))
+			if icd > icdmax {
 				// calc icdmax of the received Frame
 				icdmax = icd
 			}
