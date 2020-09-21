@@ -183,8 +183,14 @@ func (p *serialPort) Serv() {
 
 		if n > 0 {
 			// add chunk to frame
-			tracelog.Printf("read new chunk (ifd): (%v) %v\n", icd, hex.EncodeToString(chunk[:n]))
-			if len(frame) > 0 && icd > icdmax {
+			if len(frame) == 0 {
+				icd = 0
+				tracelog.Printf("read new chunk: %v\n", hex.EncodeToString(chunk[:n]))
+			} else {
+				tracelog.Printf("read new chunk (icd): (%v) %v\n", icd, hex.EncodeToString(chunk[:n]))
+			}
+
+			if icd > icdmax {
 				// calc icdmax of the received Frame
 				icdmax = icd
 			}
