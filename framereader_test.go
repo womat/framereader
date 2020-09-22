@@ -1,9 +1,6 @@
 package framereader
 
-import (
-	"fmt"
-	"testing"
-)
+import ()
 
 const (
 	PortName              = "com4"
@@ -14,6 +11,9 @@ const (
 	Timeout               = 1000
 	InterCharacterTimeout = 100
 )
+
+/*
+
 
 func TestOpen(t *testing.T) {
 	c, err := Open(Config{
@@ -83,3 +83,6 @@ func TestWrite(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+
+*/

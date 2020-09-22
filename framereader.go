@@ -197,3 +197,66 @@ func (p *serialPort) Serv() {
 	}
 	close(p.rChan)
 }
+
+func (r *Reader) serv() {
+	defer close(r.dataChan)
+	data := make(chan []byte)
+
+	go func() { // this goroutine still exist even when timeout
+		defer close(data)
+		buffer := make([]byte, framesize)
+		for !r.closed {
+			length, err := r.reader.Read(buffer)
+			if err != nil && err != io.EOF {
+				errorlog.Println("reading from serial port: ", err)
+			}
+			if length > 0 {
+				data <- buffer[:length]
+			}
+		}
+	}()
+
+	for !r.closed {
+		var icd, icdmax time.Duration
+		var count int
+
+		frame := make([]byte, framesize)
+		timeout := time.NewTimer(r.interframedelay)
+		t := time.Now()
+
+		func() {
+			for {
+				select {
+				case chunk, ok := <-data:
+					icd = time.Since(t)
+					tracelog.Printf("read new chunk (icd): (%v) %v\n", icd, hex.EncodeToString(chunk[:]))
+
+					for i := 0; count < len(frame) && i < len(chunk); i++ {
+						frame[count] = chunk[i]
+						count++
+					}
+
+					if !ok {
+						return
+					}
+
+					if icd > icdmax {
+						// calc icdmax of the received Frame
+						icdmax = icd
+					}
+					t = time.Now()
+					timeout.Reset(r.interframedelay)
+				case <-timeout.C:
+					icd = time.Since(t)
+					return
+				}
+			}
+		}()
+
+		if count > 0 {
+			// New Frame received
+			debuglog.Printf("read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(frame[:count]))
+			r.dataChan <- frame[:count]
+		}
+	}
+}
