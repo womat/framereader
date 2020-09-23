@@ -202,6 +202,7 @@ func TestResponseReaderSerialPortClose(t *testing.T) {
 func TestReader(t *testing.T) {
 	source := &dataSource{}
 	reader := NewReader(source, time.Second, time.Millisecond*10)
+	SetDebug(os.Stderr, Default|Debug)
 
 	start := time.Now()
 	data := make([]byte, 100)
@@ -336,5 +337,53 @@ func TestReadWriter(t *testing.T) {
 	if !reflect.DeepEqual(writeData, source.writeData) {
 		t.Error("write data is not correct")
 	}
+}
 
+type dataSourceReadCloser struct {
+	count     int
+	writeData []byte
+	readData  []byte
+}
+
+func (ds *dataSourceReadCloser) Read(data []byte) (int, error) {
+	ds.count++
+	switch ds.count {
+	case 1, 2, 3, 4, 5, 6, 7, 8, 9, 10:
+		time.Sleep(5 * time.Millisecond)
+		data[0] = 1
+		return 1, nil
+	case 11:
+		time.Sleep(300 * time.Millisecond)
+		return 0, nil
+	case 12, 13, 14, 15, 16, 17, 18, 19, 20:
+		time.Sleep(5 * time.Millisecond)
+		data[0] = 11
+		return 1, nil
+	case 21:
+		time.Sleep(300 * time.Millisecond)
+		return 0, nil
+	case 22, 23, 24, 25, 26, 27, 28, 29, 30:
+		time.Sleep(5 * time.Millisecond)
+		data[0] = byte(ds.count) - 20
+		return 1, nil
+	default:
+		time.Sleep(1000 * time.Hour)
+
+	}
+
+	return 0, nil
+}
+
+func (ds *dataSourceReadCloser) Close() error {
+	return nil
+}
+
+func TestClose(t *testing.T) {
+	source := &dataSourceReadCloser{}
+	rc := NewReadCloser(source, time.Second, time.Millisecond*10)
+	SetDebug(os.Stderr, Default)
+
+	time.Sleep(370 * time.Millisecond)
+	rc.Close()
+	time.Sleep(4 * time.Second)
 }

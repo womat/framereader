@@ -198,34 +198,36 @@ func (p *serialPort) Serv() {
 	close(p.rChan)
 }
 
-func (r *Reader) serv() {
-	defer close(r.dataChan)
+func (r *Reader) framereader() {
+	defer func() {
+		infolog.Println("stop frame reader services")
+		close(r.dataChan)
+	}()
 	data := make(chan []byte)
 
-	go func() { // this goroutine still exist even when timeout
-		defer close(data)
+	go func() { // this goroutine reads data from *Reader, until reader is closed reader.Closed
+		defer func() {
+			infolog.Println("stop serialport reader")
+			close(data)
+		}()
 		buffer := make([]byte, framesize)
 		for !r.closed {
-			length, err := r.reader.Read(buffer)
-			if err != nil && err != io.EOF {
-				errorlog.Println("reading from serial port: ", err)
-			}
-			if length > 0 {
-				data <- buffer[:length]
+			if n, _ := r.reader.Read(buffer); n > 0 {
+				tracelog.Printf("read %v byte(s) from serial port: %v\n", n, hex.EncodeToString(buffer[:n]))
+				data <- buffer[:n]
 			}
 		}
 	}()
 
-	for !r.closed {
+	for !r.closed { // this goroutine reads data from *Reader, until reader is closed reader.Closed
 		var icd, icdmax time.Duration
-		var count int
+		buffer := make([]byte, framesize)
 
-		frame := make([]byte, framesize)
-		timeout := time.NewTimer(r.interframedelay)
-		t := time.Now()
-
-		func() {
-			for {
+		n, err := func(frame []byte) (int, error) {
+			count := 0
+			for { // this goroutine reads a frame: appends data from serial port, until the delay between characters greater then the interframedelay
+				t := time.Now()
+				timeout := time.NewTimer(r.interframedelay)
 				select {
 				case chunk, ok := <-data:
 					icd = time.Since(t)
@@ -236,27 +238,31 @@ func (r *Reader) serv() {
 						count++
 					}
 
-					if !ok {
-						return
+					if !ok { // the channel is closed, no more characters can received
+						tracelog.Println("the channel is closed, no more characters can received, exit with EOF")
+						return count, io.EOF
 					}
 
 					if icd > icdmax {
 						// calc icdmax of the received Frame
 						icdmax = icd
 					}
-					t = time.Now()
-					timeout.Reset(r.interframedelay)
 				case <-timeout.C:
 					icd = time.Since(t)
-					return
+					return count, nil
 				}
 			}
-		}()
+		}(buffer)
 
-		if count > 0 {
+		if err != nil {
+			infolog.Println("the channel is closed, no more characters can received, stop service")
+			return
+		}
+
+		if n > 0 {
 			// New Frame received
-			debuglog.Printf("read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(frame[:count]))
-			r.dataChan <- frame[:count]
+			debuglog.Printf("read new frame (ifd/icdmax): (%v/%v) %v\n", icd, icdmax, hex.EncodeToString(buffer[:n]))
+			r.dataChan <- buffer[:n]
 		}
 	}
 }

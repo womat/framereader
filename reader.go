@@ -38,13 +38,13 @@ func NewReader(reader io.Reader, timeout time.Duration, interframedelay time.Dur
 		reader:          reader,
 		timeout:         timeout,
 		interframedelay: interframedelay,
-		dataChan:        make(chan []byte),
+		dataChan:        make(chan []byte, 5),
 	}
 	// we have to start a reader goroutine here that lives for the life
 	// of the reader because there is no
 	// way to stop a blocked goroutine
-	SetDebug(os.Stderr, Full)
-	go r.serv()
+	SetDebug(os.Stderr, Default)
+	go r.framereader()
 
 	return &r
 }
