@@ -13,10 +13,10 @@ type ReadWriter struct {
 }
 
 // NewReadWriter creates a new response reader
-func NewReadWriter(iorw io.ReadWriter, timeout time.Duration, chunkTimeout time.Duration) *ReadWriter {
+func NewReadWriter(iorw io.ReadWriter, timeout time.Duration, interframedelay time.Duration) *ReadWriter {
 	return &ReadWriter{
 		writer: iorw,
-		reader: NewReader(iorw, timeout, chunkTimeout),
+		reader: NewReader(iorw, timeout, interframedelay),
 	}
 }
 

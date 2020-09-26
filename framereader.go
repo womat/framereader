@@ -233,6 +233,11 @@ func (r *Reader) framereader() {
 					icd = time.Since(t)
 					tracelog.Printf("read new chunk (icd): (%v) %v\n", icd, hex.EncodeToString(chunk[:]))
 
+					if icd > icdmax && count > 0 {
+						// calc icdmax of the received Frame
+						icdmax = icd
+					}
+
 					for i := 0; count < len(frame) && i < len(chunk); i++ {
 						frame[count] = chunk[i]
 						count++
@@ -243,10 +248,6 @@ func (r *Reader) framereader() {
 						return count, io.EOF
 					}
 
-					if icd > icdmax {
-						// calc icdmax of the received Frame
-						icdmax = icd
-					}
 				case <-timeout.C:
 					icd = time.Since(t)
 					return count, nil

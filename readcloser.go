@@ -20,10 +20,10 @@ type ReadCloser struct {
 // chunkTimeout is used to specify the max timeout between chunks of data once
 // the response is started. If a delay of chunkTimeout is encountered, the response
 // is considered finished and the Read returns.
-func NewReadCloser(iorw io.ReadCloser, timeout time.Duration, chunkTimeout time.Duration) *ReadCloser {
+func NewReadCloser(iorw io.ReadCloser, timeout time.Duration, interframedelay time.Duration) *ReadCloser {
 	return &ReadCloser{
 		closer: iorw,
-		reader: NewReader(iorw, timeout, chunkTimeout),
+		reader: NewReader(iorw, timeout, interframedelay),
 	}
 }
 
