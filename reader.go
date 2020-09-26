@@ -3,7 +3,6 @@ package framereader
 import (
 	"errors"
 	"io"
-	"os"
 	"time"
 )
 
@@ -43,7 +42,6 @@ func NewReader(reader io.Reader, timeout time.Duration, interframedelay time.Dur
 	// we have to start a reader goroutine here that lives for the life
 	// of the reader because there is no
 	// way to stop a blocked goroutine
-	SetDebug(os.Stderr, Default)
 	go r.framereader()
 
 	return &r

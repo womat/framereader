@@ -4,6 +4,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"os"
 )
 
 const (
@@ -79,6 +80,10 @@ var (
 	tracelog   *log.Logger
 	fatallog   *log.Logger
 )
+
+func init() {
+	SetDebug(os.Stderr, Default)
+}
 
 func SetDebug(w io.Writer, flag int) {
 	warningHandle := ioutil.Discard

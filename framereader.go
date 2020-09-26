@@ -210,8 +210,8 @@ func (r *Reader) framereader() {
 			infolog.Println("stop serialport reader")
 			close(data)
 		}()
-		buffer := make([]byte, framesize)
 		for !r.closed {
+			buffer := make([]byte, framesize)
 			if n, _ := r.reader.Read(buffer); n > 0 {
 				tracelog.Printf("read %v byte(s) from serial port: %v\n", n, hex.EncodeToString(buffer[:n]))
 				data <- buffer[:n]
