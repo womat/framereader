@@ -230,10 +230,13 @@ func (r *Reader) framereader() {
 				timeout := time.NewTimer(r.interframedelay)
 				select {
 				case chunk, ok := <-data:
-					icd = time.Since(t)
+					if count > 0 {
+						icd = time.Since(t)
+					}
+
 					tracelog.Printf("read new chunk (icd): (%v) %v\n", icd, hex.EncodeToString(chunk[:]))
 
-					if icd > icdmax && count > 0 {
+					if icd > icdmax {
 						// calc icdmax of the received Frame
 						icdmax = icd
 					}
