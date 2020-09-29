@@ -202,7 +202,7 @@ func TestResponseReaderSerialPortClose(t *testing.T) {
 func TestReader(t *testing.T) {
 	source := &dataSource{}
 	reader := NewReader(source, time.Second, time.Millisecond*10)
-	SetDebug(os.Stderr, Default|Debug)
+	SetDebug(os.Stderr, Standard|Debug)
 
 	start := time.Now()
 	data := make([]byte, 100)
@@ -381,7 +381,7 @@ func (ds *dataSourceReadCloser) Close() error {
 func TestClose(t *testing.T) {
 	source := &dataSourceReadCloser{}
 	rc := NewReadCloser(source, time.Second, time.Millisecond*10)
-	SetDebug(os.Stderr, Default)
+	SetDebug(os.Stderr, Standard)
 
 	time.Sleep(370 * time.Millisecond)
 	rc.Close()
