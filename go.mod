@@ -1,6 +1,5 @@
-module github.com/womat/framereader
+module github.com/womat/frameReader
 
-go 1.15
+go 1.16
 
-require (
-)
+require github.com/womat/debug v0.0.3

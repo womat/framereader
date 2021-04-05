@@ -23,7 +23,7 @@ func TestOpen(t *testing.T) {
 		StopBits:        StopBits,
 		Parity:          Parity,
 		Timeout:         Timeout,
-		InterframeDelay: InterCharacterTimeout,
+		InterFrameDelay: InterCharacterTimeout,
 	})
 	defer func() {
 		if c == nil {
@@ -45,7 +45,7 @@ func TestClose(t *testing.T) {
 		StopBits:        StopBits,
 		Parity:          Parity,
 		Timeout:         Timeout,
-		InterframeDelay: InterCharacterTimeout,
+		InterFrameDelay: InterCharacterTimeout,
 	})
 
 	if err != nil {
@@ -66,7 +66,7 @@ func TestWrite(t *testing.T) {
 		StopBits:        StopBits,
 		Parity:          Parity,
 		Timeout:         Timeout,
-		InterframeDelay: InterCharacterTimeout,
+		InterFrameDelay: InterCharacterTimeout,
 	})
 
 	if err != nil {

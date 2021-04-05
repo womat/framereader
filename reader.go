@@ -2,12 +2,13 @@ package framereader
 
 import (
 	"errors"
+	"github.com/womat/debug"
 	"io"
 	"time"
 )
 
-// framesize is the max buffer size
-const framesize = 255
+// frameSize is the max buffer size
+const frameSize = 255
 
 // Reader is used for prompt/response communication protocols where a prompt
 // is sent, and some time later a response is received. Typically, the target takes
@@ -19,7 +20,7 @@ const framesize = 255
 type Reader struct {
 	reader          io.Reader
 	timeout         time.Duration
-	interframedelay time.Duration
+	interFrameDelay time.Duration
 	dataChan        chan []byte
 	closed          bool
 }
@@ -32,24 +33,24 @@ type Reader struct {
 // chunkTimeout is used to specify the max timeout between chunks of data once
 // the response is started. If a delay of chunkTimeout is encountered, the response
 // is considered finished and the Read returns.
-func NewReader(reader io.Reader, timeout time.Duration, interframedelay time.Duration) *Reader {
+func NewReader(reader io.Reader, timeout time.Duration, interFrameDelay time.Duration) *Reader {
 	r := Reader{
 		reader:          reader,
 		timeout:         timeout,
-		interframedelay: interframedelay,
+		interFrameDelay: interFrameDelay,
 		dataChan:        make(chan []byte, 5),
 	}
 	// we have to start a reader goroutine here that lives for the life
 	// of the reader because there is no
 	// way to stop a blocked goroutine
-	go r.framereader()
+	go r.frameReader()
 
 	return &r
 }
 
 // Read response
 func (r *Reader) Read(buffer []byte) (n int, err error) {
-	if len(buffer) <= 0 {
+	if len(buffer) == 0 {
 		return 0, errors.New("must supply non-zero length buffer")
 	}
 
@@ -71,24 +72,24 @@ func (r *Reader) Read(buffer []byte) (n int, err error) {
 // Flush is used to flush any input data
 func (r *Reader) Flush() (n int, err error) {
 	frames := 0
-	timeout := time.NewTimer(r.interframedelay)
+	timeout := time.NewTimer(r.interFrameDelay)
 
 	defer func() {
-		debuglog.Printf("drop %v frames (%v bytes)\n", frames, n)
+		debug.DebugLog.Printf("drop %v frames (%v bytes)", frames, n)
 	}()
 
 	for {
 		select {
 		case newData, ok := <-r.dataChan:
 			n += len(newData)
-			tracelog.Printf("drop frame with %v bytes\n", len(newData))
+			debug.TraceLog.Printf("drop frame with %v bytes", len(newData))
 
 			if !ok {
 				return n, io.EOF
 			}
 
 			frames++
-			timeout.Reset(r.interframedelay)
+			timeout.Reset(r.interFrameDelay)
 
 		case <-timeout.C:
 			return n, nil

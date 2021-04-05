@@ -1,7 +1,9 @@
 package framereader
 
 import (
+	"errors"
 	"fmt"
+	"github.com/womat/debug"
 	"io"
 	"os"
 	"os/exec"
@@ -36,7 +38,7 @@ func (ds *dataSource) Read(data []byte) (int, error) {
 // the underlying file descriptor.
 func TestReadCloser(t *testing.T) {
 	fifo := "rrfifo"
-	os.Remove(fifo)
+	_ = os.Remove(fifo)
 	err := exec.Command("mkfifo", fifo).Run()
 	if err != nil {
 		t.Error("mkfifo returned: ", err)
@@ -47,12 +49,12 @@ func TestReadCloser(t *testing.T) {
 	done := make(chan bool)
 
 	go func(done chan bool) {
-		fread, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
+		fRead, err := os.OpenFile(fifo, os.O_RDONLY, 0600)
 		if err != nil {
 			t.Error("Error opening fifo: ", err)
 		}
 
-		reader := NewReadWriteCloser(fread, 2*time.Second, 50*time.Millisecond)
+		reader := NewReadWriteCloser(fRead, 2*time.Second, 50*time.Millisecond)
 
 		fmt.Println("reader created")
 
@@ -64,7 +66,7 @@ func TestReadCloser(t *testing.T) {
 			}
 			rdata := make([]byte, 128)
 			c, err := reader.Read(rdata)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				fmt.Println("Reader returned EOF, exiting read routine")
 				break
 			}
@@ -76,7 +78,7 @@ func TestReadCloser(t *testing.T) {
 				go func() {
 					time.Sleep(20 * time.Millisecond)
 					fmt.Println("closing read file")
-					reader.Close()
+					_ = reader.Close()
 					closed = true
 				}()
 			}
@@ -87,12 +89,12 @@ func TestReadCloser(t *testing.T) {
 
 	time.Sleep(20 * time.Millisecond)
 
-	fwrite, err := os.OpenFile(fifo, os.O_WRONLY, 0644)
+	fWrite, err := os.OpenFile(fifo, os.O_WRONLY, 0644)
 	if err != nil {
 		t.Error("Error opening file for writing: ", err)
 	}
 
-	c, err := fwrite.Write([]byte("Hi there"))
+	c, err := fWrite.Write([]byte("Hi there"))
 
 	if err != nil {
 		t.Error("Write error: ", err)
@@ -133,12 +135,12 @@ func TestResponseReaderSerialPortClose(t *testing.T) {
 	}
 
 	go func(readCnt chan int) {
-		fread, err := serial.Open(options)
+		fRead, err := serial.Open(options)
 		if err != nil {
 			t.Error("Error opening serial port: ", err)
 		}
 
-		reader := NewReadWriteCloser(fread, 2*time.Second, 50*time.Millisecond)
+		reader := NewReadWriteCloser(fRead, 2*time.Second, 50*time.Millisecond)
 
 		fmt.Println("reader created")
 
@@ -176,12 +178,12 @@ func TestResponseReaderSerialPortClose(t *testing.T) {
 
 	options.PortName = serialPort
 
-	fwrite, err := serial.Open(options)
+	fWrite, err := serial.Open(options)
 	if err != nil {
 		t.Error("Error opening file for writing: ", err)
 	}
 
-	c, err := fwrite.Write([]byte("Hi there"))
+	c, err := fWrite.Write([]byte("Hi there"))
 
 	if err != nil {
 		t.Error("Write error: ", err)
@@ -202,7 +204,7 @@ func TestResponseReaderSerialPortClose(t *testing.T) {
 func TestReader(t *testing.T) {
 	source := &dataSource{}
 	reader := NewReader(source, time.Second, time.Millisecond*10)
-	SetDebug(os.Stderr, Standard|Debug)
+	debug.SetDebug(os.Stderr, debug.Standard|debug.Debug)
 
 	start := time.Now()
 	data := make([]byte, 100)
@@ -251,7 +253,7 @@ func TestResponseReaderTimeout(t *testing.T) {
 
 	dur := time.Since(start)
 
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Error("expected timeout error, got: ", err)
 	}
 
@@ -265,7 +267,7 @@ func TestResponseReaderTimeout(t *testing.T) {
 
 	data = data[0:count]
 
-	expData := []byte{}
+	var expData []byte
 
 	if !reflect.DeepEqual(data, expData) {
 		t.Error("expected: ", expData)
@@ -287,7 +289,6 @@ func (ds *dataSourceWrite) Read(data []byte) (int, error) {
 		return 1, nil
 	default:
 		time.Sleep(1000 * time.Hour)
-
 	}
 
 	return 0, nil
@@ -305,7 +306,7 @@ func TestReadWriter(t *testing.T) {
 	writeData := []byte{1, 2}
 	time.Sleep(100 * time.Millisecond)
 
-	readWriter.Write(writeData)
+	_, _ = readWriter.Write(writeData)
 
 	start := time.Now()
 	data := make([]byte, 100)
@@ -313,7 +314,7 @@ func TestReadWriter(t *testing.T) {
 
 	dur := time.Since(start)
 
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Error("expected timeout error: ", err)
 	}
 
@@ -327,7 +328,7 @@ func TestReadWriter(t *testing.T) {
 
 	data = data[0:count]
 
-	expData := []byte{}
+	var expData []byte
 
 	if !reflect.DeepEqual(data, expData) {
 		t.Error("expected: ", expData)
@@ -368,7 +369,6 @@ func (ds *dataSourceReadCloser) Read(data []byte) (int, error) {
 		return 1, nil
 	default:
 		time.Sleep(1000 * time.Hour)
-
 	}
 
 	return 0, nil
@@ -381,9 +381,9 @@ func (ds *dataSourceReadCloser) Close() error {
 func TestClose(t *testing.T) {
 	source := &dataSourceReadCloser{}
 	rc := NewReadCloser(source, time.Second, time.Millisecond*10)
-	SetDebug(os.Stderr, Standard)
+	debug.SetDebug(os.Stderr, debug.Standard)
 
 	time.Sleep(370 * time.Millisecond)
-	rc.Close()
+	_ = rc.Close()
 	time.Sleep(4 * time.Second)
 }
