@@ -62,7 +62,7 @@ func (r *Reader) frameReader() {
 					}
 
 					if !ok { // the channel is closed, no more characters can received
-						debug.TraceLog.Println("the channel is closed, no more characters can received, exit with EOF")
+						debug.TraceLog.Print("the channel is closed, no more characters can received, exit with EOF")
 						return count, io.EOF
 					}
 
